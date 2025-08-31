@@ -1,0 +1,21 @@
+# Python virtual environment
+venv/
+
+# Environment variables
+.env
+
+# Docker-specific files
+*.pyc
+__pycache__/
+
+# Python-specific files
+*.pyc
+
+# IDE-specific files (e.g., VS Code)
+.vscode/
+
+# Temporary files created by the backend
+ai_agent_code_run_*
+
+# Solved challenges cache
+backend/solved_challenges/

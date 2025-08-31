@@ -1,0 +1,13 @@
+{
+  "description": "Write a Python function named `solve` that takes a list of integers called `numbers`. It should return a new list containing only the even numbers from the input list, maintaining their original order. If the input list is empty, return an empty list.",
+  "test_cases": [
+    {"input": [[1, 2, 3, 4, 5, 6]], "expected_output": [2, 4, 6]},
+    {"input": [[-1, -2, -3, -4]], "expected_output": [-2, -4]},
+    {"input": [[0, 1, 2, 3, 4]], "expected_output": [0, 2, 4]},
+    {"input": [[]], "expected_output": []},
+    {"input": [[7, 9, 11]], "expected_output": []},
+    {"input": [[2]], "expected_output": [2]},
+    {"input": [[1]], "expected_output": []}
+  ],
+  "max_attempts": 5
+}
