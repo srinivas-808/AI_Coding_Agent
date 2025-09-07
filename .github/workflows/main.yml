@@ -10,7 +10,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE_NAME: "ai-coding-agent"
-  REGION: "asia-south1 (Mumbai)" # Or your preferred region
+  REGION: "asia-south1"
   ARTIFACT_REGISTRY_REPO: "ai-coding-agent-repo"
 
 jobs:
@@ -33,11 +33,12 @@ jobs:
 
       - name: Set up Docker
         uses: 'docker/setup-buildx-action@v2'
-
+      
       - name: Build and Push Docker image
         run: |
-          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }} -f backend/Dockerfiles/python_env/Dockerfile .
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
+          docker build -t "$IMAGE_TAG" -f backend/Dockerfiles/python_env/Dockerfile .
+          docker push "$IMAGE_TAG"
 
       - name: Deploy to Cloud Run
         uses: 'google-github-actions/deploy-cloudrun@v2'
@@ -46,3 +47,4 @@ jobs:
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           env_vars: GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          
