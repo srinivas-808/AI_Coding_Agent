@@ -1,129 +1,113 @@
 # backend/code_executor/executor.py
 import subprocess
+import sys
 import os
+import io
+import contextlib
 import json
-import shutil
-import uuid
 
 class CodeExecutor:
     def __init__(self):
-        self.language_config = {
-            "docker_image": "python-coder-env",
-            "runner_script": "runner.py",
-            "code_file_name": "generated_code.py"
+        # In a Cloud Run environment, we execute code directly.
+        # Docker commands are not supported here.
+        pass
+
+    def _execute_python_code_in_process(self, code, test_cases):
+        """
+        Executes Python code in the current process and captures output for testing.
+        This is suitable for serverless environments where Docker is not available.
+        """
+        report = {
+            "success": False,
+            "output": "",
+            "error_message": None,
+            "exception_type": None,
+            "test_results": []
         }
-        self.temp_dir_prefix = "ai_agent_code_run_"
 
-    def _prepare_temp_directory(self, generated_code, test_cases_json, unique_id):
-        """
-        Prepares a temporary directory with the generated code, runner script, and test cases.
-        Returns the path to the temporary directory.
-        """
-        config = self.language_config
-        
-        # Get the directory of the app.py (the entry point)
-        # This ensures temp directories are created in the main backend folder
-        app_base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # Go up one level from code_executor
-        
-        temp_path = os.path.join(app_base_dir, self.temp_dir_prefix + unique_id)
-        os.makedirs(temp_path, exist_ok=True)
-
-        # Write the generated code to the appropriate file name
-        with open(os.path.join(temp_path, config["code_file_name"]), "w") as f:
-            f.write(generated_code)
-
-        # Copy the correct runner script for Python
-        current_module_dir = os.path.dirname(__file__) # Directory where executor.py is
-        shutil.copy(os.path.join(current_module_dir, config["runner_script"]), temp_path)
-
-        # Write the test cases to 'test_cases.json'
-        with open(os.path.join(temp_path, "test_cases.json"), "w") as f:
-            json.dump(test_cases_json, f, indent=4)
-
-        return temp_path
-
-    def _cleanup_temp_directory(self, temp_path):
-        """Removes the temporary directory."""
-        if os.path.exists(temp_path):
-            shutil.rmtree(temp_path)
-
-    def execute_code(self, generated_code, test_cases, language="python"):
-        """
-        Executes the generated code with provided test cases in a Docker container.
-        Returns a dictionary containing the execution report.
-        (Language parameter is ignored for now, always assumes Python).
-        """
-        unique_id = str(uuid.uuid4())
-        temp_dir = None
-        
-        if language != "python":
-            return {
-                "success": False,
-                "output": "",
-                "error_message": f"Only 'python' language is supported in this version. Got '{language}'.",
-                "exception_type": "UnsupportedLanguage",
-                "test_results": []
-            }
-
-        config = self.language_config
+        # Redirect stdout to capture print statements
+        old_stdout = sys.stdout
+        redirected_stdout = io.StringIO()
+        sys.stdout = redirected_stdout
 
         try:
-            temp_dir = self._prepare_temp_directory(generated_code, test_cases, unique_id)
+            # Prepare the global environment for exec()
+            # This is a constrained environment to prevent malicious code, though not foolproof
+            exec_globals = {
+                '__builtins__': {
+                    'print': print,
+                    'len': len,
+                    'list': list,
+                    'dict': dict,
+                    'str': str,
+                    'int': int,
+                    'float': float,
+                    'range': range,
+                    'min': min,
+                    'max': max,
+                    'sum': sum,
+                    'sorted': sorted,
+                    'reversed': reversed,
+                    'set': set,
+                },
+                '__name__': '__main__',
+                '__file__': '<string>',
+            }
+            exec_locals = exec_globals.copy()
+            
+            # Execute the AI-generated code
+            exec(code, exec_globals, exec_locals)
 
-            docker_command = [
-                "docker", "run", "--rm",
-                "-v", f"{temp_dir}:/app",
-                config["docker_image"],
-                "python", config["runner_script"]
-            ]
-
-            print(f"Executing Docker command: {' '.join(docker_command)}")
-
-            process = subprocess.run(
-                docker_command,
-                capture_output=True,
-                text=True,
-                check=False
-            )
-
-            raw_output = process.stdout.strip()
-
-            try:
-                report = json.loads(raw_output)
-                return report
-            except json.JSONDecodeError:
-                return {
-                    "success": False,
-                    "output": raw_output,
-                    "error_message": f"Execution environment error (runner output was not valid JSON or stderr had issues): {process.stderr.strip()}",
-                    "exception_type": "DockerExecutionError",
-                    "test_results": []
+            # Look for the 'solve' function in the executed code's local scope
+            solution_func = exec_locals.get('solve')
+            if not solution_func or not callable(solution_func):
+                raise ValueError("Function 'solve' not found or is not a function.")
+            
+            all_tests_passed = True
+            for i, test_case in enumerate(test_cases):
+                test_result = {
+                    "test_number": i + 1,
+                    "input": test_case["input"],
+                    "expected_output": test_case["expected_output"],
+                    "actual_output": None,
+                    "passed": False,
+                    "error": None
                 }
-
-        except FileNotFoundError:
-            return {
-                "success": False,
-                "output": "",
-                "error_message": "Docker command not found. Is Docker installed and in your PATH?",
-                "exception_type": "DockerNotFound",
-                "test_results": []
-            }
-        except ValueError as ve:
-            return {
-                "success": False,
-                "output": "",
-                "error_message": str(ve),
-                "exception_type": "ValueError",
-                "test_results": []
-            }
+                
+                try:
+                    # Execute the solve function with the test case inputs
+                    test_input = test_case.get("input", [])
+                    actual_output = solution_func(*test_input)
+                    
+                    # Ensure JSON-compatible output for comparison
+                    test_result["actual_output"] = json.dumps(actual_output)
+                    expected_output_json = json.dumps(test_case["expected_output"])
+                    
+                    if test_result["actual_output"] == expected_output_json:
+                        test_result["passed"] = True
+                    else:
+                        all_tests_passed = False
+                except Exception as e:
+                    test_result["error"] = str(e)
+                    all_tests_passed = False
+                
+                report["test_results"].append(test_result)
+            
+            report["success"] = all_tests_passed
+            report["output"] = redirected_stdout.getvalue().strip()
+            
         except Exception as e:
-            return {
-                "success": False,
-                "output": "",
-                "error_message": f"An unexpected error occurred during Docker execution: {type(e).__name__}: {str(e)}",
-                "exception_type": type(e).__name__,
-                "test_results": []
-            }
+            report["error_message"] = str(e)
+            report["exception_type"] = type(e).__name__
         finally:
-            if temp_dir:
-                self._cleanup_temp_directory(temp_dir)
+            # Restore stdout
+            sys.stdout = old_stdout
+            
+        return report
+
+    def execute_code(self, code, test_cases):
+        """
+        Entry point to execute code for a given set of test cases.
+        """
+        # We don't use Docker, so we just call the in-process execution.
+        return self._execute_python_code_in_process(code, test_cases)

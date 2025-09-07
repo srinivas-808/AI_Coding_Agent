@@ -5,17 +5,12 @@ FROM python:3.10-slim-buster
 # Set the working directory to /app
 WORKDIR /app
 
-# Copy only the requirements file into the container first.
-# This is crucial. It tells Docker to copy requirements.txt from the backend/ directory
-# of the build context (which is the root of your repo).
-COPY backend/requirements.txt .
+# Copy the entire backend directory into the container's working directory.
+COPY . .
 
-# Install Python dependencies.
+# Install Python dependencies from requirements.txt.
+# It's assumed requirements.txt is in the same directory as the Dockerfile.
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application's source code into the container.
-# This copies everything else from the backend/ directory.
-COPY backend/ .
 
 # The command that runs when the container starts.
 # It uses Gunicorn to run your Flask app, binding it to the PORT env var provided by Cloud Run.
