@@ -10,7 +10,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE_NAME: "ai-coding-agent"
-  REGION: "mumbai" # Or your preferred region
+  REGION: "asia-south1 (Mumbai)" # Or your preferred region
   ARTIFACT_REGISTRY_REPO: "ai-coding-agent-repo"
 
 jobs:
