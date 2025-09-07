@@ -37,7 +37,7 @@ jobs:
       - name: Build and Push Docker image
         run: |
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
-          docker build -t "$IMAGE_TAG" -f backend/Dockerfiles/python_env/Dockerfile .
+          docker build -t "$IMAGE_TAG" -f Dockerfile .
           docker push "$IMAGE_TAG"
 
       - name: Deploy to Cloud Run
