@@ -38,7 +38,7 @@ def call_gemini_api(chat_history_messages, max_retries=5, base_delay=1):
         "contents": chat_history_messages,
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 40960,
+            "maxOutputTokens": 409600,
         }
     }
     for retry_attempt in range(max_retries):

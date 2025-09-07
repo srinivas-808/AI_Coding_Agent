@@ -19,3 +19,5 @@ ai_agent_code_run_*
 
 # Solved challenges cache
 backend/solved_challenges/
+
+.git
